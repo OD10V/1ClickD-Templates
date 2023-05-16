@@ -1,0 +1,261 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "resourceName": {
+      "defaultValue": "strapi",
+      "type": "String",
+      "metadata": {
+        "description": "Prefix name for all resources to be generated"
+      }
+    },
+    "location": {
+      "defaultValue": "[resourceGroup().location]",
+      "type": "String"
+    }
+  },
+  "variables": {
+    "repoURL": "https://github.com/1ClickD/Strapi-v4-AzAppLinux-AzDBMySQL-AzStorage.git",
+    "repoURLBranch": "main",
+    "databaseUser": "strapidbuser",
+    "databasePassword": "$trap!Pa$$w0rd",
+    "databaseVersion": "5.7",
+    "databaseSkuTier": "Basic",
+    "databaseSkuCapacity": 1,
+    "databaseSkuSizeGB": 5,
+    "databaseSkuFamily": "Gen5",
+    "databaseSkuName": "[concat(variables('databaseTierSymbol')[variables('databaseSkuTier')], '_Gen5_', variables('databaseSkuCapacity'))]",
+    "databaseTierSymbol": {
+      "Basic": "B"
+    },
+    "databaseServerName": "[concat(parameters('resourceName'), substring(uniqueString(resourceGroup().id), 0, 5), 'db')]",
+    "webAppName": "[concat(parameters('resourceName'), substring(uniqueString(resourceGroup().id), 0, 5),'web')]",
+    "hostingPlanName": "[concat(parameters('resourceName'), substring(uniqueString(resourceGroup().id), 0, 5),'hostingplan')]",
+    "databaseName": "strapi",
+    "storageAccountName": "[concat(parameters('resourceName'), substring(uniqueString(resourceGroup().id), 0, 5), 'store')]",
+    "containerName": "strapi-uploads",
+    "databaseSkuSizeMB": "[mul(variables('databaseSkuSizeGB'), 1024)]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DBforMySQL/servers",
+      "apiVersion": "2017-12-01",
+      "name": "[variables('databaseServerName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[variables('databaseSkuName')]",
+        "tier": "[variables('databaseSkuTier')]",
+        "capacity": "[variables('databaseSkuCapacity')]",
+        "size": "[variables('databaseSkuSizeMB')]",
+        "family": "[variables('databaseSkuFamily')]"
+      },
+      "properties": {
+        "createMode": "Default",
+        "version": "[variables('databaseVersion')]",
+        "administratorLogin": "[variables('databaseUser')]",
+        "administratorLoginPassword": "[variables('databasePassword')]",
+        "storageProfile": {
+          "storageMB": "[variables('databaseSkuSizeMB')]",
+          "backupRetentionDays": 7,
+          "geoRedundantBackup": "Disabled"
+        },
+        "sslEnforcement": "Disabled"
+      },
+      "resources": [
+        {
+          "type": "firewallrules",
+          "apiVersion": "2017-12-01",
+          "name": "AllowAzureIPs",
+          "location": "[parameters('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.DBforMySQL/servers/databases', variables('databaseServerName'), variables('databaseName'))]",
+            "[resourceId('Microsoft.DBforMySQL/servers/', variables('databaseServerName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "255.255.255.255"
+          }
+        },
+        {
+          "type": "databases",
+          "apiVersion": "2017-12-01",
+          "name": "[variables('databaseName')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.DBforMySQL/servers/', variables('databaseServerName'))]"
+          ],
+          "properties": {
+            "charset": "utf8",
+            "collation": "utf8_general_ci"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('webAppName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[resourceId('Microsoft.DBforMySQL/servers/databases', variables('databaseServerName'), variables('databaseName'))]"
+      ],
+      "properties": {
+        "name": "[variables('webAppName')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "NODE|16-lts",
+          "appSettings": [
+            {
+              "name": "ADMIN_JWT_SECRET",
+              "value": "toBeModified",
+              "slotSetting": false
+            },
+            {
+              "name": "API_TOKEN_SALT",
+              "value": "toBeModified",
+              "slotSetting": false
+            },
+            {
+              "name": "APP_KEYS",
+              "value": "toBeModified1,toBeModified2",
+              "slotSetting": false
+            },
+            {
+              "name": "JWT_SECRET",
+              "value": "toBeModified",
+              "slotSetting": false
+            },
+            {
+              "name": "NODE_ENV",
+              "value": "production"
+            },
+            {
+              "name": "DATABASE_HOST",
+              "value": "[concat(variables('databaseServerName'), '.mysql.database.azure.com')]"
+            },
+            {
+              "name": "DATABASE_USERNAME",
+              "value": "[concat(variables('databaseUser'), '@', variables('databaseServerName'))]"
+            },
+            {
+              "name": "DATABASE_PASSWORD",
+              "value": "[variables('databasePassword')]"
+            },
+            {
+              "name": "STORAGE_ACCOUNT",
+              "value": "[variables('storageAccountName')]"
+            },
+            {
+              "name": "STORAGE_ACCOUNT_KEY",
+              "value": "[listKeys(variables('storageAccountName'), '2022-05-01').keys[0].value]"
+            },
+            {
+              "name": "STORAGE_CONTAINER_NAME",
+              "value": "[variables('containerName')]"
+            },
+            {
+              "name": "STORAGE_URL",
+              "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))).primaryEndpoints.blob]",
+              "slotSetting": false
+            },
+            {
+              "name": "PRE_BUILD_COMMAND",
+              "value": "rm -rf /home/npmcache && mkdir /home/npmcache && npm config set cache /home/npmcache && yarn config set unsafe-perm true -g && yarn config set network-timeout 10000000 -g",
+              "slotSetting": false
+            },
+            {
+              "name": "PORT",
+              "value": "1337",
+              "slotSetting": false
+            }
+          ],
+          "clientAffinityEnabled": false,
+          "alwaysOn": true
+        }
+      },
+      "resources": [
+        {
+          "type": "sourcecontrols",
+          "apiVersion": "2022-03-01",
+          "name": "web",
+          "location": "[parameters('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+          ],
+          "properties": {
+            "repoURL": "[variables('repoURL')]",
+            "branch": "[variables('repoURLBranch')]",
+            "isManualIntegration": true
+          }
+        },
+        {
+          "type": "config",
+          "apiVersion": "2022-03-01",
+          "name": "web",
+          "location": "[parameters('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+          ],
+          "properties": {
+            "scmType": "ExternalGit"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('hostingPlanName')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "displayName": "[variables('hostingPlanName')]"
+      },
+      "sku": {
+        "tier": "Basic",
+        "name": "B1",
+        "capacity": 1
+      },
+      "kind": "linux",
+      "properties": {
+        "name": "[variables('hostingPlanName')]",
+        "workerSizeId": "1",
+        "reserved": true,
+        "numberOfWorkers": "1"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-05-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot"
+      },
+      "resources": [
+        {
+          "type": "blobServices/containers",
+          "apiVersion": "2022-05-01",
+          "name": "[concat('default/', variables('containerName'))]",
+          "dependsOn": [
+            "[variables('storageAccountName')]"
+          ],
+          "properties": {
+            "publicAccess": "Blob"
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "appService": {
+      "type": "Object",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2022-03-01').defaultHostName]"
+    }
+  }
+}

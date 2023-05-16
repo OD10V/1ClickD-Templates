@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+    "handler": "Microsoft.Azure.CreateUIDef",
+    "version": "0.1.2-preview",
+    "parameters": {
+        "basics": [
+            {
+                "name": "resourceName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Resource Name",
+                "toolTip": "This name will be prefixed to resources.",
+                "defaultValue": "strapi",
+                "constraints": {
+                    "required": true,
+                    "regex": "^[a-z0-9A-Z]{3,9}$",
+                    "validationMessage": "The Name must be between 3 and 9 characters long and alphanumeric only."
+                }
+            }
+        ],
+        "steps": [],
+        "outputs": {
+            "location": "[location()]"
+        }
+    }
+}
