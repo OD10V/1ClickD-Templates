@@ -1,0 +1,37 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+    "handler": "Microsoft.Azure.CreateUIDef",
+    "version": "0.1.2-preview",
+    "parameters": {
+        "basics": [
+            {
+                "name": "containerName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Azure Container Instances Group Name",
+                "toolTip": "The name of the Azure Container Instances Group.",
+                "defaultValue": "squidex",
+                "constraints": {
+                    "required": true,
+                    "regex": "^[a-z0-9A-Z-]{3,15}$",
+                    "validationMessage": "The VM Name must be between 3 and 15 characters long and contain letters, numbers and hyphens only."
+                }
+            },
+            {
+                "name": "squidexDomain",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Domain Name (Optional)",
+                "toolTip": "Optional domain name (FQDN) if you want to host Squidex under a custom domain. If not defined, a domain name will be assigned.",
+                "defaultValue": "",
+                "constraints": {
+                    "required": false,
+                    "regex": "^(?!-)[A-Za-z0-9-]+([\\-\\.]{1}[a-z0-9]+)*\\.[A-Za-z]{2,6}$",
+                    "validationMessage": "The domain(or subdomain) Name must be between 1 and 63 characters long and be a valid FQDN."
+                }
+            }
+        ],
+        "steps": [],
+        "outputs": {
+            "location": "[location()]"
+        }
+    }
+}
