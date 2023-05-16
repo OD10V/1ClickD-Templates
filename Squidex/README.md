@@ -1,0 +1,1 @@
+Squidex Templates Go Here
